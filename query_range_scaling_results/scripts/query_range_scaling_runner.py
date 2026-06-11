@@ -46,8 +46,8 @@ TRINITY_ROOT = Path(os.environ.get("TRINITY_ROOT", "/home/shijw/codex_repro/trin
 TRINITY_BIN = Path(os.environ.get("QUERY_RANGE_TRINITY_BIN", str(TRINITY_ROOT / "build_trinity_i_paper_strict_final_compare/yelp_trinity_i_exp")))
 
 SCHEMES = [
-    ("DSTF", "jxt", NOJOIN_ROOT / "TDAG/build/hash_st_bf_test"),
-    ("DSTF+", "jxt", NOJOIN_ROOT / "TDAG/build/hash_tdag_bf_test"),
+    ("DAST", "jxt", NOJOIN_ROOT / "TDAG/build/hash_st_bf_test"),
+    ("DAST+", "jxt", NOJOIN_ROOT / "TDAG/build/hash_tdag_bf_test"),
     ("Tdag-SRC", "jxt", NOJOIN_ROOT / "TDAG/build/spatiotemporal_db_test"),
     ("Qdag-SRC", "jxt", NOJOIN_ROOT / "TDAG/build/qdag_src_3d_test"),
     ("Trinity-I", "trinity", TRINITY_BIN),
@@ -655,7 +655,7 @@ def main():
         raise ValueError(f"QUERY_RANGE_WORKERS={WORKERS} exceeds QUERY_RANGE_CPUSETS count={len(CPUSETS)}")
     selected_datasets = split_filter("QUERY_RANGE_DATASETS")
     selected_schemes = split_filter("QUERY_RANGE_SCHEMES")
-    skip_dstfplus_yelp = os.environ.get("QUERY_RANGE_SKIP_DSTFPLUS_YELP", "0") == "1"
+    skip_dastplus_yelp = os.environ.get("QUERY_RANGE_SKIP_DASTPLUS_YELP", "0") == "1"
     datasets = [dataset for dataset in DATASETS if selected_datasets is None or dataset in selected_datasets]
     schemes = [
         (scheme, kind, exe)
@@ -665,8 +665,8 @@ def main():
     cases = []
     for dataset in datasets:
         for scheme, kind, exe in schemes:
-            if skip_dstfplus_yelp and dataset == "yelp" and scheme == "DSTF+":
-                print("[skip] yelp DSTF+ reserved for serial phase", flush=True)
+            if skip_dastplus_yelp and dataset == "yelp" and scheme == "DAST+":
+                print("[skip] yelp DAST+ reserved for serial phase", flush=True)
                 continue
             if existing_completed(dataset, scheme):
                 print(f"[skip] {dataset} {scheme} already has 100 success rows", flush=True)

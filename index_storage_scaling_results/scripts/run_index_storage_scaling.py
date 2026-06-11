@@ -50,8 +50,8 @@ TRINITY_LOCK = threading.Lock()
 
 
 SCHEMES = [
-    {"scheme": "DSTF", "kind": "jxt2", "root": NOJOIN_ROOT, "exe": NOJOIN_ROOT / "TDAG/build/hash_st_bf_test"},
-    {"scheme": "DSTF+", "kind": "jxt2", "root": NOJOIN_ROOT, "exe": NOJOIN_ROOT / "TDAG/build/hash_tdag_bf_test"},
+    {"scheme": "DAST", "kind": "jxt2", "root": NOJOIN_ROOT, "exe": NOJOIN_ROOT / "TDAG/build/hash_st_bf_test"},
+    {"scheme": "DAST+", "kind": "jxt2", "root": NOJOIN_ROOT, "exe": NOJOIN_ROOT / "TDAG/build/hash_tdag_bf_test"},
     {"scheme": "Qdag-SRC", "kind": "jxt2", "root": NOJOIN_ROOT, "exe": NOJOIN_ROOT / "TDAG/build/qdag_src_3d_test"},
     {"scheme": "Tdag-SRC", "kind": "jxt2", "root": NOJOIN_ROOT, "exe": NOJOIN_ROOT / "TDAG/build/spatiotemporal_db_test"},
     {"scheme": "JXT*^+", "kind": "join", "root": JOIN_ROOT, "exe": JOIN_ROOT / "build/src/test/HashIdTokenInterval_Test"},

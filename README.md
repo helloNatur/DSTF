@@ -1,6 +1,6 @@
-# DSTF Experiment Artifact
+# DAST Experiment Artifact
 
-This repository contains the source code and minimal experiment scripts used to evaluate `DSTF`, `DSTF+`, `Tdag-SRC`, `Qdag-SRC`, and `JXT*^+` on Foursquare and Yelp spatiotemporal data.
+This repository contains the source code and minimal experiment scripts used to evaluate `DAST`, `DAST+`, `Tdag-SRC`, `Qdag-SRC`, and `JXT*^+` on Foursquare and Yelp spatiotemporal data.
 
 The snapshot intentionally keeps only the files needed to build and run the experiments. Plotting notebooks, temporary logs, old wrapper scripts, raw result CSVs, and local build outputs are not included.
 
@@ -8,7 +8,7 @@ The snapshot intentionally keeps only the files needed to build and run the expe
 
 ```text
 .
-|-- TDAG/                                      # DSTF, DSTF+, Tdag-SRC, Qdag-SRC test targets
+|-- TDAG/                                      # DAST, DAST+, Tdag-SRC, Qdag-SRC test targets
 |-- src/, test/, libbf/                        # JXT*^+ dependencies and Bloom filter library
 |-- index_storage_scaling_results/
 |   |-- data/{foursquare,yelp}/jxt/N_*.csv     # cleaned JXT-format datasets
@@ -42,8 +42,8 @@ The Python runners only use the Python standard library.
 Clone the repository and set the root variables used by the scripts:
 
 ```bash
-git clone https://github.com/helloNatur/DSTF.git
-cd DSTF
+git clone https://github.com/helloNatur/DAST.git
+cd DAST
 
 export JXT2_ROOT="$PWD"
 export JXT2_JOIN_ROOT="$PWD"
@@ -60,7 +60,7 @@ cmake -S libbf -B libbf/build
 cmake --build libbf/build -j"$(nproc)"
 ```
 
-Build `DSTF`, `DSTF+`, `Qdag-SRC`, and `Tdag-SRC`:
+Build `DAST`, `DAST+`, `Qdag-SRC`, and `Tdag-SRC`:
 
 ```bash
 cmake -S TDAG -B TDAG/build
@@ -98,7 +98,7 @@ SCALING_FORCE=1 \
 SCALING_REPEATS=1 \
 SCALING_WORKERS=1 \
 SCALING_DATASETS=foursquare \
-SCALING_SCHEMES='DSTF,DSTF+,Tdag-SRC,Qdag-SRC,JXT*^+' \
+SCALING_SCHEMES='DAST,DAST+,Tdag-SRC,Qdag-SRC,JXT*^+' \
 SCALING_SIZES=100000 \
 SCALING_MEM_LIMIT_GIB=490 \
 python3 index_storage_scaling_results/scripts/run_index_storage_scaling.py
@@ -112,7 +112,7 @@ SCALING_FORCE=1 \
 SCALING_REPEATS=3 \
 SCALING_WORKERS=1 \
 SCALING_DATASETS=foursquare,yelp \
-SCALING_SCHEMES='DSTF,DSTF+,Tdag-SRC,Qdag-SRC,JXT*^+' \
+SCALING_SCHEMES='DAST,DAST+,Tdag-SRC,Qdag-SRC,JXT*^+' \
 SCALING_SIZES=100000,200000,300000,400000,500000 \
 SCALING_MEM_LIMIT_GIB=490 \
 python3 index_storage_scaling_results/scripts/run_index_storage_scaling.py
@@ -162,7 +162,7 @@ Run a smoke test:
 QUERY_RANGE_APPEND=0 \
 QUERY_RANGE_WORKERS=1 \
 QUERY_RANGE_DATASETS=foursquare \
-QUERY_RANGE_SCHEMES='DSTF,DSTF+' \
+QUERY_RANGE_SCHEMES='DAST,DAST+' \
 QUERY_RANGE_MAX_REPEAT=1 \
 QUERY_RANGE_MEM_LIMIT_GIB=490 \
 python3 query_range_scaling_results/scripts/query_range_scaling_runner.py
@@ -174,7 +174,7 @@ Run the full query range experiment without Trinity-I:
 QUERY_RANGE_APPEND=0 \
 QUERY_RANGE_WORKERS=1 \
 QUERY_RANGE_DATASETS=foursquare,yelp \
-QUERY_RANGE_SCHEMES='DSTF,DSTF+,Tdag-SRC,Qdag-SRC' \
+QUERY_RANGE_SCHEMES='DAST,DAST+,Tdag-SRC,Qdag-SRC' \
 QUERY_RANGE_MEM_LIMIT_GIB=490 \
 python3 query_range_scaling_results/scripts/query_range_scaling_runner.py
 ```
@@ -205,7 +205,7 @@ INDEX_CPUSETS='0-31;32-63' \
 QUERY_CPUSETS='0-31;32-63' \
 CPU_IDLE_MIN=75 \
 MEM_LIMIT_GIB=490 \
-NON_QDAG_SCHEMES='DSTF,DSTF+,Tdag-SRC,JXT*^+' \
+NON_QDAG_SCHEMES='DAST,DAST+,Tdag-SRC,JXT*^+' \
 QDAG_SCHEMES='Qdag-SRC' \
 bash index_storage_scaling_results/scripts/run_index_then_query_range_clean_490.sh
 ```
@@ -215,14 +215,14 @@ If Trinity-I is prepared separately, add `Trinity-I` to `NON_QDAG_SCHEMES` and s
 ## 7. Scheme and Binary Mapping
 
 ```text
-DSTF      -> TDAG/build/hash_st_bf_test
-DSTF+     -> TDAG/build/hash_tdag_bf_test
+DAST      -> TDAG/build/hash_st_bf_test
+DAST+     -> TDAG/build/hash_tdag_bf_test
 Qdag-SRC  -> TDAG/build/qdag_src_3d_test
 Tdag-SRC  -> TDAG/build/spatiotemporal_db_test
 JXT*^+    -> build/src/test/HashIdTokenInterval_Test
 ```
 
-`JXT*^+` is used in the index/storage scaling experiment. The current query range runner evaluates `DSTF`, `DSTF+`, `Tdag-SRC`, `Qdag-SRC`, and optionally `Trinity-I`.
+`JXT*^+` is used in the index/storage scaling experiment. The current query range runner evaluates `DAST`, `DAST+`, `Tdag-SRC`, `Qdag-SRC`, and optionally `Trinity-I`.
 
 ## 8. Notes
 

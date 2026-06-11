@@ -313,7 +313,7 @@ fi
 build_targets
 start_monitors
 
-NON_QDAG_SCHEMES="${NON_QDAG_SCHEMES:-DSTF,DSTF+,Tdag-SRC,JXT*^+,Trinity-I}"
+NON_QDAG_SCHEMES="${NON_QDAG_SCHEMES:-DAST,DAST+,Tdag-SRC,JXT*^+,Trinity-I}"
 QDag_SCHEMES="${QDAG_SCHEMES:-Qdag-SRC}"
 FIRST_APPEND="0"
 if [[ "${RESUME_EXISTING}" == "1" ]]; then
