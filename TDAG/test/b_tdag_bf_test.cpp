@@ -10,6 +10,7 @@
 #include <sstream>
 #include <iomanip>
 #include <chrono>
+#include <cstdlib>
 #include <unordered_map>
 #include <unordered_set>
 #include <set>
@@ -17,6 +18,30 @@
 #include "tdag_src_3d.hpp"  // 假设
 #include "standard_emm.hpp"
 #include "coordinate_transformer.hpp"
+
+std::size_t GetEnvSizeT(const char* name, std::size_t fallback) {
+    const char* value = std::getenv(name);
+    if (value == nullptr || *value == '\0') {
+        return fallback;
+    }
+    try {
+        return static_cast<std::size_t>(std::stoull(value));
+    } catch (const std::exception&) {
+        return fallback;
+    }
+}
+
+int GetEnvInt(const char* name, int fallback) {
+    const char* value = std::getenv(name);
+    if (value == nullptr || *value == '\0') {
+        return fallback;
+    }
+    try {
+        return std::max(1, std::stoi(value));
+    } catch (const std::exception&) {
+        return fallback;
+    }
+}
 
 // CSV加载辅助函数（同原）
 std::vector<SpatiotemporalPoint> load_spatiotemporal_data(const std::string& filepath,std::size_t limit_n = SIZE_MAX) {
@@ -89,7 +114,8 @@ protected:
         // std::string path_ = "/nvme/baum/git-project/JXT2/data/table1/table1_k7_j1_" + x + ".csv";
         // std::string path_ = "/home/workstation-309/baum/JXT2/data/table1/table1_k7_j1_" + x + ".csv";
         std::string path_ = "/home/shijw/JXT2/data/table1/table1_k7_j1_" + x + ".csv";
-    std::size_t target_N = 300000;
+        std::size_t target_N = GetEnvSizeT("JXT2_LIMIT_N", 300000);
+        query_runs = GetEnvInt("JXT2_QUERY_RUNS", 100);
         all_points_ = load_spatiotemporal_data(path_,target_N);
         ASSERT_FALSE(all_points_.empty());
         std::cout << "Loaded " << all_points_.size() << " data points." << std::endl;
@@ -162,6 +188,7 @@ protected:
     double lat_min, lat_max, lon_min, lon_max;
     std::string start_time, end_time;
     std::string K_token,K_enc;
+    int query_runs = 100;
     // std::unique_ptr<EncryptedSpatialDB> db_;
     std::unique_ptr<StandardEMM> emm_engine;
 
@@ -170,11 +197,12 @@ protected:
 // 核心测试：时空查询 + 验证cover包含truth (模拟EMM用cover生成时间关键词)
 TEST_F(SpatiotemporalDB_Tdag_Test, PerformSpatiotemporalQueryAndVerify) {
     
-    std::cout << "\n--- Spatiotemporal Query Test(100 runs) ---" << std::endl;
+    std::cout << "\n--- Spatiotemporal Query Test(" << query_runs << " runs) ---" << std::endl;
     double sum_query_gen_ms = 0, sum_eval_ms = 0, sum_decrypt_ms = 0, sum_total_ms = 0;
     std::size_t last_ground_truth = 0, last_returned = 0;
 
-    for (int run = 1; run <= 100; ++run)
+    int print_every = std::max(1, query_runs / 10);
+    for (int run = 1; run <= query_runs; ++run)
     {
 
         // =================================================================
@@ -266,7 +294,7 @@ TEST_F(SpatiotemporalDB_Tdag_Test, PerformSpatiotemporalQueryAndVerify) {
         last_returned     = ids_time.size();
 
 
-        if (run % 10 == 0) {
+        if (run % print_every == 0) {
             std::cout << "[Run " << run << "] latency(ms): gen=" << timings.query_gen_ms
                       << ", eval=" << timings.eval_ms
                       << ", dec="  << timings.result_decrypt_ms
@@ -280,11 +308,11 @@ TEST_F(SpatiotemporalDB_Tdag_Test, PerformSpatiotemporalQueryAndVerify) {
     //输出100次平均值
     std::cout << std::fixed << std::setprecision(2);
     std::cout << "========================================================\n"; 
-    std::cout << "Query Time (Client Token Gen): " << (sum_query_gen_ms / 100.0) << " ms\n";
-    std::cout << "Eval Time (Server Evaluation): " << (sum_eval_ms      / 100.0) << " ms\n";
-    std::cout << "Result Time (Client Decrypt):  " << (sum_decrypt_ms      / 100.0)<< " ms\n";
+    std::cout << "Query Time (Client Token Gen): " << (sum_query_gen_ms / query_runs) << " ms\n";
+    std::cout << "Eval Time (Server Evaluation): " << (sum_eval_ms      / query_runs) << " ms\n";
+    std::cout << "Result Time (Client Decrypt):  " << (sum_decrypt_ms      / query_runs)<< " ms\n";
     std::cout << "--------------------------------------------------------\n";
-    std::cout << "Total Query Latency:           " << (sum_total_ms     / 100.0) << " ms\n";
+    std::cout << "Total Query Latency:           " << (sum_total_ms     / query_runs) << " ms\n";
     std::cout << "Last Returned / Truth    " << last_returned << " / " << last_ground_truth << "\n";
     std::cout << "========================================================\n";
 }

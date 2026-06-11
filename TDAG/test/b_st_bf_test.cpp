@@ -10,6 +10,7 @@
 #include <sstream>
 #include <iomanip> // 用于 std::get_time
 #include <time.h>  // 用于 timegm, 将UTC时间转换为时间戳
+#include <cstdlib>
 #include <unordered_map>
 #include "bplus_tree.h"
 #include "TimeUtil.h"
@@ -26,6 +27,30 @@ void PrintQueryArgs(const std::string& start_time,
   std::cout << "lat_max = " << lat_max << ";\n";
   std::cout << "lon_min = " << lon_min << ";\n";
   std::cout << "lon_max = " << lon_max << ";\n";
+}
+
+std::size_t GetEnvSizeT(const char* name, std::size_t fallback) {
+    const char* value = std::getenv(name);
+    if (value == nullptr || *value == '\0') {
+        return fallback;
+    }
+    try {
+        return static_cast<std::size_t>(std::stoull(value));
+    } catch (const std::exception&) {
+        return fallback;
+    }
+}
+
+int GetEnvInt(const char* name, int fallback) {
+    const char* value = std::getenv(name);
+    if (value == nullptr || *value == '\0') {
+        return fallback;
+    }
+    try {
+        return std::max(1, std::stoi(value));
+    } catch (const std::exception&) {
+        return fallback;
+    }
 }
 
 // CSV加载辅助函数
@@ -101,7 +126,8 @@ protected:
         std::string x = "300000"; // 这里可以调整为不同的数据集规模
         // std::string path_ = "/home/workstation-309/baum/JXT2/data/table1/table1_k7_j1_" + x + ".csv";
         std::string path_ = "/home/shijw/JXT2/data/table1/table1_k7_j1_" + x + ".csv";
-    std::size_t target_N = 300000;
+        std::size_t target_N = GetEnvSizeT("JXT2_LIMIT_N", 300000);
+        query_runs = GetEnvInt("JXT2_QUERY_RUNS", 100);
         all_points_ = load_spatiotemporal_data(path_,target_N);
         ASSERT_FALSE(all_points_.empty());
 
@@ -176,6 +202,7 @@ protected:
     std::string start_time, end_time;
     double lat_min, lat_max, lon_min, lon_max;
     std::string K_token,K_enc;
+    int query_runs = 100;
     // std::unique_ptr<EncryptedSpatialDB> db_;
     std::unique_ptr<StandardEMM> emm_engine;
 
@@ -183,12 +210,13 @@ protected:
 
 
 TEST_F(SpatiotemporalDB_BTree_Test, PerformSpatiotemporalQueryAndVerify) {
-    std::cout << "\n--- Spatiotemporal Query Test(100 runs) ---\n" << std::endl;
+    std::cout << "\n--- Spatiotemporal Query Test(" << query_runs << " runs) ---\n" << std::endl;
 
     double sum_query_gen_ms = 0, sum_eval_ms = 0, sum_decrypt_ms = 0, sum_total_ms = 0;
     std::size_t last_ground_truth = 0, last_returned = 0;
 
-    for (int run = 1; run <= 100; ++run)
+    int print_every = std::max(1, query_runs / 10);
+    for (int run = 1; run <= query_runs; ++run)
     {
         // =================================================================
         // 1. 客户端：准备查询参数
@@ -352,7 +380,7 @@ TEST_F(SpatiotemporalDB_BTree_Test, PerformSpatiotemporalQueryAndVerify) {
         last_ground_truth = ground_truth_ids.size();
         last_returned     = set_time.size();
 
-        if (run % 10 == 0) {
+        if (run % print_every == 0) {
             std::cout << "[Run " << run << "] latency(ms): gen=" << timings.query_gen_ms
                       << ", eval=" << timings.eval_ms
                       << ", dec="  << timings.result_decrypt_ms
@@ -365,11 +393,11 @@ TEST_F(SpatiotemporalDB_BTree_Test, PerformSpatiotemporalQueryAndVerify) {
     //输出100次平均值
     std::cout << std::fixed << std::setprecision(2);
     std::cout << "========================================================\n"; 
-    std::cout << "Query Time (Client Token Gen): " << (sum_query_gen_ms / 100.0) << " ms\n";
-    std::cout << "Eval Time (Server Evaluation): " << (sum_eval_ms      / 100.0) << " ms\n";
-    std::cout << "Result Time (Client Decrypt):  " << (sum_decrypt_ms      / 100.0)<< " ms\n";
+    std::cout << "Query Time (Client Token Gen): " << (sum_query_gen_ms / query_runs) << " ms\n";
+    std::cout << "Eval Time (Server Evaluation): " << (sum_eval_ms      / query_runs) << " ms\n";
+    std::cout << "Result Time (Client Decrypt):  " << (sum_decrypt_ms      / query_runs)<< " ms\n";
     std::cout << "--------------------------------------------------------\n";
-    std::cout << "Total Query Latency:           " << (sum_total_ms     / 100.0) << " ms\n";
+    std::cout << "Total Query Latency:           " << (sum_total_ms     / query_runs) << " ms\n";
     std::cout << "Last Returned / Truth    " << last_returned << " / " << last_ground_truth << "\n";
     std::cout << "========================================================\n";
     

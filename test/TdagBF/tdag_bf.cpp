@@ -78,6 +78,82 @@ void TdagBF::insert_keyword(int interval_start, int interval_end, const std::str
     insert_keyword(interval_start, interval_end, std::vector<std::string>{keyword});
 }
 
+void TdagBF::insert_keyword_deferred(int interval_start,
+                                     int interval_end,
+                                     const std::vector<std::string>& keywords) {
+    insert_keyword_leaf_only_helper(shared_from_this(), interval_start, interval_end, keywords);
+}
+
+void TdagBF::finalize_bloom_filters() {
+    finalize_bloom_filters_helper(shared_from_this());
+}
+
+void TdagBF::reset_bloom_filter(const std::shared_ptr<bf::basic_bloom_filter>& target) const {
+    if (!target) return;
+    auto bits = target->storage();
+    for (size_t i = 0; i < bits.size(); ++i) {
+        bits[i] = 0;
+    }
+    target->set_storage(std::move(bits));
+}
+
+void TdagBF::or_assign_bloom(const std::shared_ptr<bf::basic_bloom_filter>& target,
+                             const std::shared_ptr<bf::basic_bloom_filter>& source) const {
+    if (!target || !source) return;
+    auto target_bits = target->storage();
+    const auto& source_bits = source->storage();
+    if (target_bits.size() != source_bits.size()) {
+        std::cerr << "Error: Bloom filter bit vectors have different sizes "
+                  << "target.size:" << target_bits.size()
+                  << " source.size:" << source_bits.size() << std::endl;
+        return;
+    }
+    for (size_t i = 0; i < target_bits.size(); ++i) {
+        target_bits[i] |= source_bits[i];
+    }
+    target->set_storage(std::move(target_bits));
+}
+
+void TdagBF::insert_keyword_leaf_only_helper(std::shared_ptr<TdagBF> node,
+                                             int interval_start,
+                                             int interval_end,
+                                             const std::vector<std::string>& keywords) {
+    if (!node) return;
+
+    if (node->height <= 0 || node->range.first == node->range.second) {
+        for (const auto& keyword : keywords) {
+            node->bf->add(keyword);
+        }
+        return;
+    }
+
+    const std::pair<int, int> interval{interval_start, interval_end};
+    if (node->left && node->interval_contains_interval(node->left->range, interval)) {
+        insert_keyword_leaf_only_helper(node->left, interval_start, interval_end, keywords);
+    }
+    if (node->right && node->interval_contains_interval(node->right->range, interval)) {
+        insert_keyword_leaf_only_helper(node->right, interval_start, interval_end, keywords);
+    }
+}
+
+void TdagBF::finalize_bloom_filters_helper(std::shared_ptr<TdagBF> node) {
+    if (!node) return;
+    if (node->height <= 0 || node->range.first == node->range.second) {
+        return;
+    }
+
+    finalize_bloom_filters_helper(node->left);
+    finalize_bloom_filters_helper(node->right);
+
+    reset_bloom_filter(node->bf);
+    if (node->left && node->left->bf) {
+        or_assign_bloom(node->bf, node->left->bf);
+    }
+    if (node->right && node->right->bf) {
+        or_assign_bloom(node->bf, node->right->bf);
+    }
+}
+
 // “只在叶子 add，内部结点 OR 子树”——避免重复合并
 void TdagBF::insert_keyword_helper(std::shared_ptr<TdagBF> node, int interval_start, int interval_end, const std::vector<std::string>& keywords) {
     if (!node) return;
@@ -470,15 +546,18 @@ TdagBF::get_single_range_cover(const std::pair<int,int>& q,
 
         // 去重
         if (candA == candB) {
-            auto node = locate_node_for_range(self, candA);
-            // if (node && node->bf_matches(kws)) return candA; //返回or的情况
-            if (node && has_match_within(node, q, kws)) return candA; //返回and的情况
+            if (interval_contains_interval(candA, q)) {
+                auto node = locate_node_for_range(self, candA);
+                // if (node && node->bf_matches(kws)) return candA; //返回or的情况
+                if (node && has_match_within(node, q, kws)) return candA; //返回and的情况
+            }
         } else {
             // 先做存在性 + BF 剪枝
             std::pair<int,int> best{-1,-1};
             double best_load = 1.0;
 
             auto try_one = [&](const std::pair<int,int>& c) {
+                if (!interval_contains_interval(c, q)) return;
                 auto node = locate_node_for_range(self, c);
                 if (!node) return; 
                 // if (!node->bf_matches(kws)) return; // 返回or的情况

@@ -25,6 +25,15 @@ private:
         return grid_val;
     }
 
+    int transform_end(double value, double range) const {
+        if (range == 0) return grid_size_;
+        double normalized = value / range;
+        int grid_val = static_cast<int>(std::ceil(normalized * grid_max_val_));
+        if (grid_val < 0) return 0;
+        if (grid_val > grid_size_) return grid_size_;
+        return grid_val;
+    }
+
     long long min_ts_;
     double ts_range_;
     const int grid_size_;
@@ -59,9 +68,9 @@ public:
             transform(query_box.min_lon + 180.0, 360.0)
         );
         GridPoint3D end(
-            transform(query_box.max_ts - min_ts_, ts_range_),
-            transform(query_box.max_lat + 90.0, 180.0),
-            transform(query_box.max_lon + 180.0, 360.0)
+            transform_end(query_box.max_ts - min_ts_, ts_range_),
+            transform_end(query_box.max_lat + 90.0, 180.0),
+            transform_end(query_box.max_lon + 180.0, 360.0)
         );
         return {start, end};
     }

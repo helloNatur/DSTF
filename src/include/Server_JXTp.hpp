@@ -14,7 +14,7 @@ private:
     using VectorHash = Setup_JXTp::VectorHash;
     std::unordered_map<std::vector<unsigned char>, std::vector<std::vector<unsigned char>>, VectorHash> tset;
     std::optional<Bloom> f_1, f_2;
-    std::map<long, std::vector<std::vector<unsigned char>>> cset1, cset2;
+    std::unordered_map<long, std::vector<std::vector<unsigned char>>> cset1, cset2;
     std::vector<unsigned char> stag1;
 
     // std::shared_ptr<SegmentTree> segment_tree1, segment_tree2;
@@ -26,8 +26,8 @@ public:
     };
     
     Server_JXTp(const std::unordered_map<std::vector<unsigned char>, std::vector<std::vector<unsigned char>>, VectorHash>& tset_,
-                Bloom f_1_, std::map<long, std::vector<std::vector<unsigned char>>> cset1_,
-                Bloom f_2_, std::map<long, std::vector<std::vector<unsigned char>>> cset2_);
+                Bloom f_1_, std::unordered_map<long, std::vector<std::vector<unsigned char>>> cset1_,
+                Bloom f_2_, std::unordered_map<long, std::vector<std::vector<unsigned char>>> cset2_);
 
     [[nodiscard]] int tset_table1_cnt(const std::vector<unsigned char>& stag1_);
 

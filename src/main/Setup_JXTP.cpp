@@ -14,11 +14,11 @@
 // Setup_JXTp.hpp
 // 修改构造函数的初始化列表
 //SegmentTree类的构造函数
-Setup_JXTp::Setup_JXTp(int table_id_, int key_column_num, int join_column_num, int record, std::string condition_t)
+Setup_JXTp::Setup_JXTp(int table_id_, int key_column_num, int join_column_num, int record, std::string condition_t,std::size_t limit_n )
     : table_id{table_id_}, key_column{key_column_num}, join_column{join_column_num}, record_num{record},
-        condition{std::move(condition_t)},
+        condition{std::move(condition_t)},limit_n{limit_n},
         // segment_tree(std::make_shared<SegmentTree>(record, 0.01, 10)) {//记录数，bloom filter的误判率，bloom filter的容量
-        bplus_tree(std::make_shared<BPlusTree>(2, std::vector<double>{40.5, -74.2}, std::vector<double>{41.0, -73.7}, 8)){} 
+        bplus_tree(std::make_shared<BPlusTree>(2, std::vector<double>{35.51018469, 139.4708776}, std::vector<double>{35.86715042, 139.9125932}, 8)){} 
   
 // //具体的年月日
 // long long Setup_JXTp::date_to_timestamp(const std::string& date) {
@@ -57,6 +57,9 @@ void Setup_JXTp::construct() {
     while (std::getline(file, line)) {
         if (counter >= record_num + 1) {
             throw std::runtime_error("Too many records in CSV file");
+        }
+        if (counter > limit_n) {
+            break;
         }
         // 如果行末尾有回车符，就移除它
         if (!line.empty() && line.back() == '\r') {

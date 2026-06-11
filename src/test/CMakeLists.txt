@@ -59,6 +59,22 @@ target_include_directories(IdTokenInterval_Test PRIVATE ${CMAKE_SOURCE_DIR}/src/
 
 
 # 可执行文件 Analyze10MinIntervals
+add_executable(HashIdTokenInterval_Test
+    hash_IdTokenTest_interval.cpp
+    HashSetup_JXTp.cpp
+    adaptive_time_bucket.cpp
+)
+target_link_libraries(HashIdTokenInterval_Test PRIVATE utils server_code
+                      gtest gtest_main pthread BPlusTree)
+target_include_directories(HashIdTokenInterval_Test PRIVATE
+                            ${CMAKE_SOURCE_DIR}/src/include
+                            ${GTEST_INCLUDE_DIRS}
+                            ${CMAKE_SOURCE_DIR}/test/SegmentTree
+                            ${CMAKE_SOURCE_DIR}/test/serverdb
+                            ${CMAKE_SOURCE_DIR}/test/BPlus
+                            ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(HashIdTokenInterval_Test PRIVATE DATA_DIR="${CMAKE_SOURCE_DIR}/data")
+
 add_definitions(-DDATA_DIR="${CMAKE_SOURCE_DIR}/data")
 add_executable(Analyze10MinIntervals
     Analyze_data.cpp

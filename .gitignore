@@ -1,0 +1,45 @@
+# Build outputs
+build/
+build-*/
+build_*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.o
+*.a
+*.so
+
+# Python/runtime caches
+__pycache__/
+*.pyc
+.venv/
+
+# Experiment outputs and logs
+**/raw_logs/
+**/logs/
+**/*.log
+**/*.pid
+**/*_latest_dir.txt
+index_storage_scaling_results/*.csv
+index_storage_scaling_results/*.md
+query_range_scaling_results/query_range_scaling_raw*.csv
+query_range_scaling_results/query_range_scaling_summary.csv
+query_range_scaling_results/query_range_scaling_report.md
+query_range_scaling_results/backups/
+
+# Local IDE
+.vscode/
+TDAG/log-v-datasets/
+TDAG/sh/log-v-query/
+TDAG/sh/log-v-query_days/
+*.bak
+*.bak_*
+*_bak0.cpp
+.DS_Store
+test/pea_dram/unique/build/
+test/pea_dram/unique/test/table1_k7_j1_*.csv
+serverdb/
+TDAG/log-v-datasets/
+data/table1/
+data/table2/

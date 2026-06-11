@@ -5,8 +5,8 @@
 #include <iostream>
 
 Server_JXTp::Server_JXTp(const std::unordered_map<std::vector<unsigned char>, std::vector<std::vector<unsigned char>>, VectorHash>& tset_,
-                         Bloom f_1_, std::map<long, std::vector<std::vector<unsigned char>>> cset1_,
-                         Bloom f_2_, std::map<long, std::vector<std::vector<unsigned char>>> cset2_)
+                         Bloom f_1_, std::unordered_map<long, std::vector<std::vector<unsigned char>>> cset1_,
+                         Bloom f_2_, std::unordered_map<long, std::vector<std::vector<unsigned char>>> cset2_)
     : tset(tset_), f_1(std::move(f_1_)), cset1(std::move(cset1_)), 
       f_2(std::move(f_2_)), cset2(std::move(cset2_)) {}
 

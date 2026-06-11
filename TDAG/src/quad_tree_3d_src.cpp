@@ -99,18 +99,26 @@ std::vector<Rect3D> QuadTree3DSRC::getChildren(const Rect3D& parent) const {
 
 std::vector<Rect3D> QuadTree3DSRC::findContainingRangeCovers(const GridPoint3D& point) const {
     if (!root_rect_.containsPoint(point)) return {};
+
     std::vector<Rect3D> result;
+    std::unordered_set<Rect3D> visited;
     std::function<void(const Rect3D&)> collect = [&](const Rect3D& rect) {
+        if (!visited.insert(rect).second) {
+            return;
+        }
         result.push_back(rect);
+
         auto it = qdag_dict_.find(rect);
-        if (it != qdag_dict_.end()) {
-            for (const auto& child : it->second) {
-                if (child.containsPoint(point)) {
-                    collect(child); // 递归到 child
-                }
+        if (it == qdag_dict_.end()) {
+            return;
+        }
+        for (const auto& child : it->second) {
+            if (child.containsPoint(point)) {
+                collect(child);
             }
         }
     };
+
     collect(root_rect_);
     return result;
 }
@@ -283,8 +291,16 @@ Rect3D QuadTree3DSRC::getSingleRangeCover(const Rect3D& query) const {
             }
         } else { // SRC mode
             int offset = power_of_2 / 2;
-            if (offset == 0) { // Fallback for small power_of_2
-                 return root_rect_;
+            if (offset == 0) {
+                GridPoint3D start(
+                    std::min(std::max(adjusted_query.start.x, 0), max_domain_ - 1),
+                    std::min(std::max(adjusted_query.start.y, 0), max_domain_ - 1),
+                    std::min(std::max(adjusted_query.start.z, 0), max_domain_ - 1)
+                );
+                return Rect3D(
+                    start,
+                    GridPoint3D(start.x + 1, start.y + 1, start.z + 1)
+                );
             }
 
             // 5. Generate candidate start coordinates for each axis
@@ -326,4 +342,3 @@ Rect3D QuadTree3DSRC::getSingleRangeCover(const Rect3D& query) const {
 
     return root_rect_; // Fallback to the root if no smaller cover is found
 }
-

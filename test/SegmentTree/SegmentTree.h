@@ -110,11 +110,17 @@ protected:
     void getCandidateIntervals(size_t node, int start, int end, 
                               int l, int r, const std::vector<std::string>& keywords,
                               std::vector<IntervalResult>& result);
+    void update_deferred(size_t node, int start, int end, int id,
+                         const std::shared_ptr<std::vector<unsigned char>>& token,
+                         const std::vector<std::string>& keywords);
+    void finalize_bloom_filters(size_t node, int start, int end);
     void updateParent(size_t node);
     void mergeLeafNodes(size_t node,int start,int end);
     static constexpr double THRESHOLD = 0.001; // hamming 距离阈值
     // static constexpr double THRESHOLD = 0.001; // 临时禁用合并
     size_t hamming_distance(const std::shared_ptr<bf::basic_bloom_filter>& bf1, 
+                            const std::shared_ptr<bf::basic_bloom_filter>& bf2);
+    bool should_share_bloom(const std::shared_ptr<bf::basic_bloom_filter>& bf1,
                             const std::shared_ptr<bf::basic_bloom_filter>& bf2);
     
 
@@ -122,6 +128,8 @@ public:
     SegmentTree(int size, double fp, size_t capacity, 
                 size_t seed = 0, bool double_hashing = true, bool partition = true);
     void update(int id, const std::shared_ptr<std::vector<unsigned char>>& token, const std::vector<std::string>& keywords);
+    void update_deferred(int id, const std::shared_ptr<std::vector<unsigned char>>& token, const std::vector<std::string>& keywords);
+    void finalize_bloom_filters();
     std::vector<std::shared_ptr<std::vector<unsigned char>>> query(int l, int r);
     std::vector<IntervalResult> getCandidateIntervals(int l, int r, const std::vector<std::string>& keywords);
     std::shared_ptr<bf::basic_bloom_filter> merge_bloom(

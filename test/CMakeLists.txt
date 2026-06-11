@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 # 项目名称和语言
-project(Test LANGUAGES CXX)
+project(JXTTest LANGUAGES CXX)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -43,8 +43,6 @@ target_include_directories(cube_code
     ${CMAKE_SOURCE_DIR}/serverdb  # serverdb 头文件
     ${CMAKE_SOURCE_DIR}/SegmentTree  # SegmentTree 头文件
     ${CMAKE_SOURCE_DIR}/BPlus  # BPlus 头文件
-    ${CMAKE_SOURCE_DIR}/TdagBF  # TdagBF 头文件
-    # ${CMAKE_SOURCE_DIR}/test/TdagBF  # TdagBF 测试头文件
     ${LIBBF_INCLUDE_DIRS}  # libbf 头文件
 )
 target_link_libraries(cube_code PUBLIC 
@@ -57,7 +55,6 @@ target_link_libraries(cube_code PUBLIC
 add_subdirectory(serverdb)
 add_subdirectory(SegmentTree)
 add_subdirectory(BPlus)
-add_subdirectory(TdagBF)
 
 #启动测试
 enable_testing()

@@ -197,6 +197,20 @@ TEST_F(TdagBFTest, GetSingleRangeCoverReturnsMinimalCover) {
     EXPECT_EQ(cover, std::make_pair(2, 5));
 }
 
+TEST_F(TdagBFTest, GetSingleRangeCoverRejectsPartialCandidates) {
+    const std::string keyword = "partial_cover_keyword";
+    const std::pair<int, int> query_range = {5, 12};
+
+    tdag_bf_->insert_keyword(5, 5, keyword);
+    tdag_bf_->insert_keyword(12, 12, keyword);
+
+    auto cover = tdag_bf_->get_single_range_cover(query_range, {keyword});
+
+    EXPECT_TRUE(tdag_bf_->interval_contains_interval(cover, query_range))
+        << "cover=[" << cover.first << "," << cover.second << "]";
+    EXPECT_EQ(cover, std::make_pair(0, 15));
+}
+
 //求解交集if (node && has_match_within(node, q, kws)) return candA; //返回and的情况
 TEST_F(TdagBFTest, QueryWindowHasNoKeywordHitInIntersection_ShouldReturnEmpty) {
     // 仅在时间点 7 写入关键词 "kw"

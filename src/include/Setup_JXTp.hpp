@@ -37,6 +37,7 @@ private:
     int key_column;
     int join_column;
     int record_num;
+    std::size_t limit_n;
     std::string condition;
     std::vector<std::string> id;
     std::vector<std::vector<std::string>> keyword;
@@ -46,7 +47,7 @@ private:
     std::optional<Bloom> f;//std::optional 默认构造为未初始化状态
     // Bloom f;//是Setu_JXTp的成员变量
     std::unordered_map<std::vector<unsigned char>, std::vector<std::vector<unsigned char>>,VectorHash> tset;
-    std::map<long, std::vector<std::vector<unsigned char>>> cset;
+    std::unordered_map<long, std::vector<std::vector<unsigned char>>> cset;
     // std::shared_ptr<SegmentTree> segment_tree; // 添加 segment_tree 成员变量
     std::shared_ptr<BPlusTree> bplus_tree;
 
@@ -54,7 +55,7 @@ private:
 
 public:
     Setup_JXTp(int table_id_, int key_column_num, int join_column_num, int record, 
-                std::string condition_t);
+                std::string condition_t,std::size_t limit_n);
     void construct();
     void saveToJson(const std::string& filename) const;
     // 返回可修改的引用
@@ -67,7 +68,7 @@ public:
         return tset;
     }
     [[nodiscard]] Bloom getF() const { return *f; }
-    [[nodiscard]] auto getCset() const -> std::map<long, std::vector<std::vector<unsigned char>>> { return cset; }
+    [[nodiscard]] auto getCset() const -> std::unordered_map<long, std::vector<std::vector<unsigned char>>> { return cset; }
     void store(std::string_view text) const;
 
     // std::shared_ptr<SegmentTree> getSegmentTree() const {

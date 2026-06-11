@@ -86,6 +86,28 @@ target_include_directories(BPlusTree PUBLIC
 )
 target_link_libraries(BPlusTree PUBLIC SegmentTree TdagBF BPlusTdag) 
 
+# --- PeaDRAM day-level hash index adapter ---
+add_library(pea_dram_day_index STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pea_dram_day_index.cpp
+)
+target_include_directories(pea_dram_day_index
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../test/pea_dram/unique/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../test/pea_dram/unique/util
+)
+target_compile_options(pea_dram_day_index PRIVATE -march=native)
+target_link_libraries(pea_dram_day_index PUBLIC pthread)
+
+# --- adaptive time bucket locator shared by DSTF and DSTF+ ---
+add_library(adaptive_time_bucket STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/adaptive_time_bucket.cpp
+)
+target_include_directories(adaptive_time_bucket PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
 
 # --- tdag_src_3d  ---
 add_library(tdag_src_3d STATIC
@@ -221,6 +243,25 @@ target_link_libraries(b_st_bf_test PRIVATE
                       )
 add_test(NAME SpatiotemporalDBBtreeTests COMMAND b_st_bf_test)
 
+# --- hash/ST/BF experiment target ---
+add_executable(hash_st_bf_test ${CMAKE_CURRENT_SOURCE_DIR}/test/hash_st_bf_test.cpp)
+target_include_directories(hash_st_bf_test PRIVATE 
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../src/include
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/BPlus
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/SegmentTree
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/serverdb
+                            ${GTEST_INCLUDE_DIRS}
+                            ${LIBBF_INCLUDE_DIRS}
+                            ${CMAKE_CURRENT_SOURCE_DIR}/include )
+target_link_libraries(hash_st_bf_test PRIVATE 
+                      tdag_src_3d
+                      pea_dram_day_index
+                      adaptive_time_bucket
+                      gtest 
+                      gtest_main 
+                      )
+add_test(NAME HashSTBFTests COMMAND hash_st_bf_test)
+
 # --- 测试目标 3 ---
 add_executable(qdag_src_3d_test ${CMAKE_CURRENT_SOURCE_DIR}/test/qdag_src_3d_test.cpp)
 target_include_directories(qdag_src_3d_test PRIVATE 
@@ -352,6 +393,27 @@ target_link_libraries(b_tdag_bf_test PRIVATE
                       )
 add_test(NAME BPTdagBFTest COMMAND b_tdag_bf_test)
 
+# --- hash/TDAG/BF experiment target ---
+add_executable(hash_tdag_bf_test ${CMAKE_CURRENT_SOURCE_DIR}/test/hash_tdag_bf_test.cpp)
+target_include_directories(hash_tdag_bf_test PRIVATE 
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../src/include
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/BPlus
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/BPlusTdag
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/SegmentTree
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/serverdb
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/TdagBF
+                            ${GTEST_INCLUDE_DIRS}
+                            ${LIBBF_INCLUDE_DIRS}
+                            ${CMAKE_CURRENT_SOURCE_DIR}/include )
+target_link_libraries(hash_tdag_bf_test PRIVATE 
+                      tdag_src_3d
+                      pea_dram_day_index
+                      adaptive_time_bucket
+                      gtest 
+                      gtest_main 
+                      )
+add_test(NAME HashTdagBFTest COMMAND hash_tdag_bf_test)
+
 
 # --- 测试目标 3 ---
 add_executable(qdag_src_3d_test_v_datasets ${CMAKE_CURRENT_SOURCE_DIR}/test/qdag_src_3d_test_v_datasets.cpp)
@@ -389,3 +451,64 @@ target_link_libraries(spatiotemporal_db_test1 PRIVATE
                       gtest_main 
                       )
 add_test(NAME SpatiotemporalDBTests1 COMMAND spatiotemporal_db_test1)
+
+# --- Logarithmic-SRC-i1 time-axis variant for spatiotemporal_db_test ---
+add_executable(i1_spatiotemporal_db_test ${CMAKE_CURRENT_SOURCE_DIR}/test/i1_spatiotemporal_db_test.cpp)
+target_include_directories(i1_spatiotemporal_db_test PRIVATE
+                            ${CMAKE_CURRENT_SOURCE_DIR}/include
+                            ${CMAKE_CURRENT_SOURCE_DIR}/test
+                            ${GTEST_INCLUDE_DIRS}
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/BPlus
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/SegmentTree
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/serverdb
+                            ${LIBBF_INCLUDE_DIRS}
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../src/include )
+target_link_libraries(i1_spatiotemporal_db_test PRIVATE
+                      tdag_src_3d
+                      gtest
+                      gtest_main
+                      )
+add_test(NAME I1SpatiotemporalDBTests COMMAND i1_spatiotemporal_db_test)
+
+# --- B+ day localization + Logarithmic-SRC-i1 interval index ---
+add_executable(i1_b_tdag_bf_test ${CMAKE_CURRENT_SOURCE_DIR}/test/i1_b_tdag_bf_test.cpp)
+target_include_directories(i1_b_tdag_bf_test PRIVATE
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../src/include
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/BPlus
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/BPlusTdag
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/SegmentTree
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/serverdb
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/TdagBF
+                            ${GTEST_INCLUDE_DIRS}
+                            ${LIBBF_INCLUDE_DIRS}
+                            ${CMAKE_CURRENT_SOURCE_DIR}/include
+                            ${CMAKE_CURRENT_SOURCE_DIR}/test )
+target_link_libraries(i1_b_tdag_bf_test PRIVATE
+                      tdag_src_3d
+                      BPlusTdag
+                      TdagBF
+                      gtest
+                      gtest_main
+                      )
+add_test(NAME I1BPTdagBFTest COMMAND i1_b_tdag_bf_test)
+
+# --- PeaHash day localization + Logarithmic-SRC-i1 interval index ---
+add_executable(i1_hash_tdag_bf_test ${CMAKE_CURRENT_SOURCE_DIR}/test/i1_hash_tdag_bf_test.cpp)
+target_include_directories(i1_hash_tdag_bf_test PRIVATE
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../src/include
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/BPlus
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/BPlusTdag
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/SegmentTree
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/serverdb
+                            ${CMAKE_CURRENT_SOURCE_DIR}/../test/TdagBF
+                            ${GTEST_INCLUDE_DIRS}
+                            ${LIBBF_INCLUDE_DIRS}
+                            ${CMAKE_CURRENT_SOURCE_DIR}/include
+                            ${CMAKE_CURRENT_SOURCE_DIR}/test )
+target_link_libraries(i1_hash_tdag_bf_test PRIVATE
+                      tdag_src_3d
+                      pea_dram_day_index
+                      gtest
+                      gtest_main
+                      )
+add_test(NAME I1HashTdagBFTest COMMAND i1_hash_tdag_bf_test)

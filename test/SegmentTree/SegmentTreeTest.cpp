@@ -8,6 +8,19 @@ std::shared_ptr<std::vector<unsigned char>> create_token(const std::string& str)
         return std::make_shared<std::vector<unsigned char>>(str.begin(), str.end());
 }
 
+template <typename BitVector>
+bool bitvector_equal(const BitVector& lhs, const BitVector& rhs) {
+    if (lhs.size() != rhs.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < lhs.size(); ++i) {
+        if (lhs[i] != rhs[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 class SegmentTreeTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -129,13 +142,36 @@ TEST_F(SegmentTreeTest, MergeBloomFunction) {
     auto merged_with_empty = segment_tree->merge_bloom(bf1, empty_bf);
     ASSERT_TRUE(merged_with_empty != nullptr);
     EXPECT_TRUE(merged_with_empty->lookup(keyword1)) ;
-    EXPECT_TRUE(merged_with_empty->lookup(keyword2)) ;
 
     // 测试两个空布隆过滤器
     auto empty_bf2 = std::make_shared<bf::basic_bloom_filter>(global_hasher, required_cells, partition,optimal_k);
     auto merged_empty = segment_tree->merge_bloom(empty_bf, empty_bf2);
     ASSERT_TRUE(merged_empty != nullptr);
     EXPECT_FALSE(merged_empty->lookup(keyword1)) ;
+}
+
+TEST_F(SegmentTreeTest, MergeDissimilarBloomFiltersDoesNotMutateChildren) {
+    auto bf1 = std::make_shared<bf::basic_bloom_filter>(
+        global_hasher, required_cells, partition, optimal_k);
+    auto bf2 = std::make_shared<bf::basic_bloom_filter>(
+        global_hasher, required_cells, partition, optimal_k);
+
+    bf1->add("left-keyword");
+    for (int i = 0; i < 20; ++i) {
+        bf2->add("right-keyword-" + std::to_string(i));
+    }
+
+    auto bf1_before = bf1->storage();
+    auto bf2_before = bf2->storage();
+    auto merged_bf = segment_tree->merge_bloom(bf1, bf2);
+
+    ASSERT_TRUE(merged_bf != nullptr);
+    EXPECT_NE(merged_bf, bf1);
+    EXPECT_NE(merged_bf, bf2);
+    EXPECT_TRUE(merged_bf->lookup("left-keyword"));
+    EXPECT_TRUE(merged_bf->lookup("right-keyword-0"));
+    EXPECT_TRUE(bitvector_equal(bf1->storage(), bf1_before));
+    EXPECT_TRUE(bitvector_equal(bf2->storage(), bf2_before));
 }
 
 TEST_F(SegmentTreeTest, UpdateSingleTokenAndKeyword) {
@@ -157,6 +193,29 @@ TEST_F(SegmentTreeTest, UpdateSingleTokenAndKeyword) {
 
     result = segment_tree->query(id + 1, id + 1);
     EXPECT_TRUE(result.empty());
+}
+
+TEST_F(SegmentTreeTest, DeferredUpdateBuildsInternalBloomFiltersOnFinalize) {
+    auto token1 = create_token("token1");
+    auto token2 = create_token("token2");
+    std::string keyword = "keyword-deferred";
+
+    segment_tree->update_deferred(2, token1, {keyword});
+    segment_tree->update_deferred(5, token2, {keyword});
+
+    auto before_finalize = segment_tree->getCandidateIntervals(0, size - 1, {keyword});
+    EXPECT_TRUE(before_finalize.empty());
+
+    segment_tree->finalize_bloom_filters();
+
+    const auto& tree = segment_tree->get_tree();
+    ASSERT_TRUE(tree[1].bf != nullptr);
+    EXPECT_TRUE(tree[1].bf->lookup(keyword));
+
+    auto intervals = segment_tree->getCandidateIntervals(0, size - 1, {keyword});
+    ASSERT_EQ(intervals.size(), 2);
+    EXPECT_EQ(intervals[0].left, 2);
+    EXPECT_EQ(intervals[1].left, 5);
 }
 
 TEST_F(SegmentTreeTest, BloomFilterORAggregation) {

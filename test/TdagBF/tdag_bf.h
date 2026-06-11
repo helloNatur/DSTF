@@ -76,6 +76,21 @@ public:
      */
     void insert_keyword(int interval_start, int interval_end, const std::vector<std::string>& keywords);
 
+    /**
+     * @brief Insert keywords into matching leaf BFs without propagating to parents.
+     *
+     * Use this for bulk construction, then call finalize_bloom_filters() once.
+     * It avoids rebuilding the same parent BFs for every inserted record.
+     */
+    void insert_keyword_deferred(int interval_start,
+                                 int interval_end,
+                                 const std::vector<std::string>& keywords);
+
+    /**
+     * @brief Rebuild internal Bloom Filters bottom-up after deferred inserts.
+     */
+    void finalize_bloom_filters();
+
     // ✅ 旧接口：单关键词（为兼容现有测试与旧调用）
     void insert_keyword(int interval_start, int interval_end, const std::string& keyword);
 
@@ -134,6 +149,18 @@ public:
      * @param keyword Keyword to insert.
      */
     void insert_keyword_helper(std::shared_ptr<TdagBF> node, int interval_start, int interval_end, const std::vector<std::string>& keywords);
+
+    void insert_keyword_leaf_only_helper(std::shared_ptr<TdagBF> node,
+                                         int interval_start,
+                                         int interval_end,
+                                         const std::vector<std::string>& keywords);
+
+    void finalize_bloom_filters_helper(std::shared_ptr<TdagBF> node);
+
+    void reset_bloom_filter(const std::shared_ptr<bf::basic_bloom_filter>& target) const;
+
+    void or_assign_bloom(const std::shared_ptr<bf::basic_bloom_filter>& target,
+                         const std::shared_ptr<bf::basic_bloom_filter>& source) const;
 
     /**
      * @brief Upward propagation: Merge children's BF into parent's via OR.

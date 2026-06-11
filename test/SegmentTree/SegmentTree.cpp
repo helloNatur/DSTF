@@ -36,13 +36,42 @@ SegmentTree::SegmentTree(int size, double fp, size_t capacity, size_t seed,
 size_t SegmentTree::hamming_distance(const std::shared_ptr<bf::basic_bloom_filter>& bf1, 
                                       const std::shared_ptr<bf::basic_bloom_filter>& bf2) {
     if (!bf1 || !bf2) return std::numeric_limits<size_t>::max(); // 如果任一 Bloom Filter 为空，返回最大距离
-    auto bits1 = bf1->storage();
-    auto bits2 = bf2->storage();
+    const auto& bits1 = bf1->storage();
+    const auto& bits2 = bf2->storage();
+    if (bits1.size() != bits2.size()) {
+        return std::numeric_limits<size_t>::max();
+    }
     size_t distance = 0;
     for (size_t i = 0; i < bits1.size(); ++i) {
-        distance += __builtin_popcount(bits1[i] ^ bits2[i]); // 使用位异或计算 Hamming 距离
+        unsigned long long x = static_cast<unsigned long long>(bits1[i] ^ bits2[i]);
+        distance += __builtin_popcountll(x); // 使用位异或计算 Hamming 距离
     }
     return distance;
+}
+
+bool SegmentTree::should_share_bloom(
+    const std::shared_ptr<bf::basic_bloom_filter>& bf1,
+    const std::shared_ptr<bf::basic_bloom_filter>& bf2) {
+    if (!bf1 || !bf2) {
+        return false;
+    }
+    const auto& bits1 = bf1->storage();
+    const auto& bits2 = bf2->storage();
+    if (bits1.size() != bits2.size() || bits1.size() == 0) {
+        return false;
+    }
+    if (bits1.count() == 0 || bits2.count() == 0) {
+        return false;
+    }
+    const size_t dist = hamming_distance(bf1, bf2);
+    if (dist == std::numeric_limits<size_t>::max()) {
+        return false;
+    }
+    const size_t total_bits = bits1.size() * sizeof(bits1[0]) * 8;
+    const double rel = total_bits == 0
+        ? 1.0
+        : static_cast<double>(dist) / static_cast<double>(total_bits);
+    return rel < THRESHOLD;
 }
 
 
@@ -74,13 +103,17 @@ std::shared_ptr<bf::basic_bloom_filter> SegmentTree::merge_bloom(
     //     merged_bits[i] |= bits2[i]; // 位或操作
     // }
 
+    const bool share = should_share_bloom(bf1, bf2);
     bf::bitvector merged_bit = bits1 | bits2;
-    // 使用 bf1 的哈希函数创建新的布隆过滤器
-    // auto merged_bf = std::make_shared<bf::basic_bloom_filter>(global_hasher, required_cells, partition,optimal_k);
-    // merged_bf->storage() = merged_bits; // 设置合并后的位向量
-    bf1->set_storage(std::move(merged_bit)); 
-    
-    return bf1;
+    if (share) {
+        bf1->set_storage(std::move(merged_bit));
+        return bf1;
+    }
+
+    auto merged_bf = std::make_shared<bf::basic_bloom_filter>(
+        global_hasher, required_cells, partition, optimal_k);
+    merged_bf->set_storage(std::move(merged_bit));
+    return merged_bf;
 }
 
 void SegmentTree::build(size_t node, int start, int end) {
@@ -113,13 +146,18 @@ void SegmentTree::updateParent(size_t node) {
         return;
     }
 
-    //如果子节点共享同一个bf，父节点直接复用
-    if (tree[left_child].bf==tree[right_child].bf && tree[left_child].bf) {
-        // 合并子节点的 Bloom Filter
+    if (tree[left_child].bf == tree[right_child].bf && tree[left_child].bf) {
         tree[node].bf = tree[left_child].bf;
-    } else {
-        tree[node].bf = merge_bloom(tree[left_child].bf,tree[right_child].bf);
+        return;
     }
+
+    const bool share_children = should_share_bloom(tree[left_child].bf, tree[right_child].bf);
+    auto merged = merge_bloom(tree[left_child].bf, tree[right_child].bf);
+    if (share_children && merged) {
+        tree[left_child].bf = merged;
+        tree[right_child].bf = merged;
+    }
+    tree[node].bf = merged;
 }
 
 void SegmentTree::mergeLeafNodes(size_t node, int start, int end) {
@@ -184,7 +222,6 @@ void SegmentTree::update(size_t node, int start, int end, int id,
             tree[node].bf->add(keyword);
             //std::cout << "Node " << node << " added keyword: " << keyword << ", lookup: " << tree[node].bf->lookup(keyword) << std::endl;
         }
-        mergeLeafNodes(node, start, end);
         size_t parent_node = node / 2;
         while (parent_node >= 1) {
             updateParent(parent_node);
@@ -215,6 +252,61 @@ void SegmentTree::update(int id, const std::shared_ptr<std::vector<unsigned char
         return;
     }
     update(1, 0, n - 1, id, token, keywords);
+}
+
+void SegmentTree::update_deferred(size_t node, int start, int end, int id,
+                                  const std::shared_ptr<std::vector<unsigned char>>& token,
+                                  const std::vector<std::string>& keywords) {
+    if (start == end) {
+        if (!tree[node].bf) {
+            tree[node].bf = std::make_shared<bf::basic_bloom_filter>(
+                global_hasher, required_cells, partition, optimal_k);
+        }
+        tree[node].tokens.push_back(token);
+        for (const auto& keyword : keywords) {
+            tree[node].bf->add(keyword);
+        }
+        return;
+    }
+
+    int mid = start + (end - start) / 2;
+    if (id <= mid) {
+        update_deferred(2 * node, start, mid, id, token, keywords);
+    } else {
+        update_deferred(2 * node + 1, mid + 1, end, id, token, keywords);
+    }
+}
+
+void SegmentTree::update_deferred(
+    int id,
+    const std::shared_ptr<std::vector<unsigned char>>& token,
+    const std::vector<std::string>& keywords) {
+    if (id < 0 || id >= n) {
+        std::cerr << "Error: id out of bounds" << std::endl;
+        return;
+    }
+    update_deferred(1, 0, n - 1, id, token, keywords);
+}
+
+void SegmentTree::finalize_bloom_filters(size_t node, int start, int end) {
+    if (node >= tree.size()) {
+        return;
+    }
+    if (start == end) {
+        return;
+    }
+
+    int mid = start + (end - start) / 2;
+    finalize_bloom_filters(2 * node, start, mid);
+    finalize_bloom_filters(2 * node + 1, mid + 1, end);
+    updateParent(node);
+}
+
+void SegmentTree::finalize_bloom_filters() {
+    if (n <= 0 || tree.empty()) {
+        return;
+    }
+    finalize_bloom_filters(1, 0, n - 1);
 }
 
 

@@ -3,6 +3,7 @@
 #include "tdag_src_3d.hpp"
 #include "standard_emm.hpp"
 #include "coordinate_transformer.hpp"
+#include "query_plan_csv.hpp"
 #include <iostream>
 #include <vector>
 #include <algorithm>
@@ -19,6 +20,8 @@
 #include <string>
 #include <ctime>
 #include <cstdint>
+#include <cstdlib>
+#include <limits>
 
 
 // 将 epoch（秒或毫秒）转成 "YYYY-MM-DD HH:MM:SS+00"
@@ -55,6 +58,50 @@ static void PrintQueryBoxAsInit(const SpatiotemporalQueryBox& q) {
   std::cout << "        };\n";
 }
 
+std::size_t GetEnvSizeT(const char* name, std::size_t fallback) {
+    const char* value = std::getenv(name);
+    if (value == nullptr || *value == '\0') {
+        return fallback;
+    }
+    try {
+        return static_cast<std::size_t>(std::stoull(value));
+    } catch (const std::exception&) {
+        return fallback;
+    }
+}
+
+double GetEnvDouble(const char* name, double fallback) {
+    const char* value = std::getenv(name);
+    if (value == nullptr || *value == '\0') {
+        return fallback;
+    }
+    try {
+        return std::stod(value);
+    } catch (const std::exception&) {
+        return fallback;
+    }
+}
+
+int GetEnvInt(const char* name, int fallback) {
+    const char* value = std::getenv(name);
+    if (value == nullptr || *value == '\0') {
+        return fallback;
+    }
+    try {
+        return std::max(1, std::stoi(value));
+    } catch (const std::exception&) {
+        return fallback;
+    }
+}
+
+std::string GetEnvString(const char* name, const std::string& fallback) {
+    const char* value = std::getenv(name);
+    if (value == nullptr || *value == '\0') {
+        return fallback;
+    }
+    return value;
+}
+
 
 // CSV加载辅助函数
 std::vector<SpatiotemporalPoint> load_spatiotemporal_data(const std::string& filepath,std::size_t limit_n = SIZE_MAX) {
@@ -87,7 +134,7 @@ std::vector<SpatiotemporalPoint> load_spatiotemporal_data(const std::string& fil
         std::string time_str;
 
         try {
-            std::string time_str = record[7];
+            time_str = record[7];
             ts = TimeUtil::to_timestamp(time_str);
             lat = std::stod(record[4]);  // 假设纬度在第5列
             lon = std::stod(record[5]);  // 假设经度在第6列
@@ -100,6 +147,24 @@ std::vector<SpatiotemporalPoint> load_spatiotemporal_data(const std::string& fil
         ++counter;
     }
     return data;
+}
+
+std::pair<std::vector<double>, std::vector<double>> BoundsForPoints(
+    const std::vector<SpatiotemporalPoint>& points) {
+    double min_lat = std::numeric_limits<double>::max();
+    double min_lon = std::numeric_limits<double>::max();
+    double max_lat = std::numeric_limits<double>::lowest();
+    double max_lon = std::numeric_limits<double>::lowest();
+    for (const auto& point : points) {
+        min_lat = std::min(min_lat, point.latitude);
+        min_lon = std::min(min_lon, point.longitude);
+        max_lat = std::max(max_lat, point.latitude);
+        max_lon = std::max(max_lon, point.longitude);
+    }
+    const double lat_pad = std::max(1e-6, (max_lat - min_lat) * 0.001);
+    const double lon_pad = std::max(1e-6, (max_lon - min_lon) * 0.001);
+    return {{min_lat - lat_pad, min_lon - lon_pad},
+            {max_lat + lat_pad, max_lon + lon_pad}};
 }
 
 
@@ -115,8 +180,10 @@ protected:
         auto start_build = std::chrono::high_resolution_clock::now();
         std::string x = "300000"; // 这里可以调整为不同的数据集规模
         // std::string path_ = "/home/workstation-309/baum/JXT2/data/table1/table1_k7_j1_" + x + ".csv";
-        std::string path_ = "/home/shijw/JXT2/data/table1/table1_k7_j1_" + x + ".csv";
-        std::size_t target_N = 300000;
+        std::string default_path = "/home/shijw/JXT2/data/table1/table1_k7_j1_" + x + ".csv";
+        std::string path_ = GetEnvString("JXT2_DATA_PATH", default_path);
+        std::size_t target_N = GetEnvSizeT("JXT2_LIMIT_N", 300000);
+        query_runs = GetEnvInt("JXT2_QUERY_RUNS", 100);
         all_points_ = load_spatiotemporal_data(path_,target_N);
         ASSERT_FALSE(all_points_.empty());
 
@@ -126,6 +193,21 @@ protected:
             [](const auto& a, const auto& b){ return a.utc_timestamp < b.utc_timestamp; });
         long long min_ts = min_it->utc_timestamp;
         long long max_ts = max_it->utc_timestamp;
+        const auto auto_bounds = BoundsForPoints(all_points_);
+        const auto& center_point = all_points_[all_points_.size() / 2];
+        const std::string fallback_day = center_point.time_str.substr(0, 10);
+        const double lat_span = auto_bounds.second[0] - auto_bounds.first[0];
+        const double lon_span = auto_bounds.second[1] - auto_bounds.first[1];
+        const double lat_delta = std::max(1e-6, lat_span * 0.02);
+        const double lon_delta = std::max(1e-6, lon_span * 0.02);
+        const double fallback_lat_min =
+            std::max(auto_bounds.first[0], center_point.latitude - lat_delta);
+        const double fallback_lat_max =
+            std::min(auto_bounds.second[0], center_point.latitude + lat_delta);
+        const double fallback_lon_min =
+            std::max(auto_bounds.first[1], center_point.longitude - lon_delta);
+        const double fallback_lon_max =
+            std::min(auto_bounds.second[1], center_point.longitude + lon_delta);
 
         
         // 将真实的、连续的经纬度和时间坐标转换到这个离散网格上。
@@ -160,12 +242,17 @@ protected:
         std::cout << "[Storage] Total Index Size: " << storage_size_bytes / 1024.0 << " KB" << std::endl;
 
         query_box = {
-            .min_ts = TimeUtil::to_timestamp("2012-04-05 01:20:00+00"),
-            .max_ts = TimeUtil::to_timestamp("2012-04-05 22:40:00+00"),
-            .min_lat = 35.6798362,
-            .max_lat = 35.69325604,
-            .min_lon = 139.6678108,
-            .max_lon = 139.7722312
+            .min_ts = TimeUtil::to_timestamp(
+                GetEnvString("JXT2_QUERY_START", fallback_day + " 00:00:00+00")),
+            .max_ts = TimeUtil::to_timestamp(
+                GetEnvString("JXT2_QUERY_END", fallback_day + " 23:59:59+00")),
+            .min_lat = GetEnvDouble("JXT2_QUERY_LAT_MIN", fallback_lat_min),
+            .max_lat = GetEnvDouble("JXT2_QUERY_LAT_MAX", fallback_lat_max),
+            .min_lon = GetEnvDouble("JXT2_QUERY_LON_MIN", fallback_lon_min),
+            .max_lon = GetEnvDouble("JXT2_QUERY_LON_MAX", fallback_lon_max)
+
+
+
 
 
 
@@ -188,6 +275,7 @@ protected:
     std::unique_ptr<CoordinateTransformer> transformer_;
     std::vector<SpatiotemporalPoint> all_points_;
     SpatiotemporalQueryBox query_box;
+    int query_runs = 100;
 };
 
 
@@ -196,14 +284,6 @@ protected:
 
 //     // --- 使用指定的查询范围 ---
 //     // 1. 定义一个真实世界的时空查询范围
-//     SpatiotemporalQueryBox query_box = {
-//         .min_ts = TimeUtil::to_timestamp("2012-04-03 18:00:00"),
-//         .max_ts = TimeUtil::to_timestamp("2012-04-08 10:10:10"),
-//         .min_lat = 40.7,
-//         .max_lat = 40.76,
-//         .min_lon = -74.0,
-//         .max_lon = -73.98
-//     };
 
 //     // 2. 将真实查询范围转换为整数网格范围
 //     Rect3D grid_rect = transformer_->to_grid_rect(query_box);
@@ -321,12 +401,73 @@ TEST_F(SpatiotemporalDB_Test, PerformanceBenchmark) {
     //           << static_cast<double>(storage_size_bytes) / 1024.0 << " KB)\n\n";
 
     // --- 2. 查询性能测试 ---
-    std::cout << "\n--- Spatiotemporal Query Test(100 runs) ---\n" << std::endl;
+    std::cout << "\n--- Spatiotemporal Query Test(" << query_runs << " runs) ---\n" << std::endl;
+
+    const std::string query_plan_path = QueryPlanPathFromEnv("JXT2_QUERY_PLAN");
+    if (!query_plan_path.empty()) {
+        const std::string dataset_filter = GetEnvString("JXT2_DATASET", "");
+        const auto rows = LoadQueryPlanRows(query_plan_path, dataset_filter);
+        std::cout << "[QPLAN] loaded_rows=" << rows.size()
+                  << " path=" << query_plan_path << "\n";
+        for (const auto& row : rows) {
+            SpatiotemporalQueryBox local_query_box{
+                .min_ts = TimeUtil::to_timestamp(row.query_start),
+                .max_ts = TimeUtil::to_timestamp(row.query_end),
+                .min_lat = row.lat_min,
+                .max_lat = row.lat_max,
+                .min_lon = row.lon_min,
+                .max_lon = row.lon_max
+            };
+
+            const Rect3D grid_rect = transformer_->to_grid_rect(local_query_box);
+            const auto rangequery = db_->benchmarkRangeQuery(grid_rect);
+            const double total_ms = rangequery.timings.query_gen_ms +
+                                    rangequery.timings.eval_ms +
+                                    rangequery.timings.result_decrypt_ms;
+
+            std::set<int> candidate_ids(rangequery.set_times.begin(),
+                                        rangequery.set_times.end());
+            std::set<int> ground_truth_ids;
+            for (const auto& p : all_points_) {
+                if (p.utc_timestamp >= local_query_box.min_ts &&
+                    p.utc_timestamp <= local_query_box.max_ts &&
+                    p.latitude >= local_query_box.min_lat &&
+                    p.latitude <= local_query_box.max_lat &&
+                    p.longitude >= local_query_box.min_lon &&
+                    p.longitude <= local_query_box.max_lon) {
+                    ground_truth_ids.insert(p.record_id);
+                }
+            }
+
+            EXPECT_GE(candidate_ids.size(), ground_truth_ids.size());
+            EXPECT_TRUE(std::includes(candidate_ids.begin(), candidate_ids.end(),
+                                      ground_truth_ids.begin(), ground_truth_ids.end()))
+                << "Tdag-SRC query-plan result does not fully include ground truth";
+
+            std::size_t false_positive_count = 0;
+            for (const auto id : candidate_ids) {
+                if (ground_truth_ids.find(id) == ground_truth_ids.end()) {
+                    ++false_positive_count;
+                }
+            }
+
+            PrintQueryPlanResult("Tdag-SRC", row,
+                                 rangequery.timings.query_gen_ms,
+                                 rangequery.timings.eval_ms,
+                                 rangequery.timings.result_decrypt_ms,
+                                 total_ms,
+                                 candidate_ids.size(),
+                                 ground_truth_ids.size(),
+                                 false_positive_count);
+        }
+        return;
+    }
 
     double sum_query_gen_ms = 0, sum_eval_ms = 0, sum_decrypt_ms = 0, sum_total_ms = 0;
     std::size_t last_ground_truth = 0, last_returned = 0;
 
-    for (int run = 1; run <= 100; ++run)
+    int print_every = std::max(1, query_runs / 10);
+    for (int run = 1; run <= query_runs; ++run)
     {
 
         RangeQueryResult rangequery;
@@ -376,7 +517,7 @@ TEST_F(SpatiotemporalDB_Test, PerformanceBenchmark) {
         last_ground_truth = ground_truth_ids.size();
         last_returned     = set_time.size();
 
-        if (run % 10 == 0) {
+        if (run % print_every == 0) {
             std::cout << "[Run " << run << "] latency(ms): gen=" << rangequery.timings.query_gen_ms
                       << ", eval=" << rangequery.timings.eval_ms
                       << ", dec="  << rangequery.timings.result_decrypt_ms
@@ -390,11 +531,11 @@ TEST_F(SpatiotemporalDB_Test, PerformanceBenchmark) {
     //输出100次平均值
     std::cout << std::fixed << std::setprecision(2);
     std::cout << "========================================================\n"; 
-    std::cout << "Query Time (Client Token Gen): " << (sum_query_gen_ms / 100.0) << " ms\n";
-    std::cout << "Eval Time (Server Evaluation): " << (sum_eval_ms      / 100.0) << " ms\n";
-    std::cout << "Result Time (Client Decrypt):  " << (sum_decrypt_ms      / 100.0)<< " ms\n";
+    std::cout << "Query Time (Client Token Gen): " << (sum_query_gen_ms / query_runs) << " ms\n";
+    std::cout << "Eval Time (Server Evaluation): " << (sum_eval_ms      / query_runs) << " ms\n";
+    std::cout << "Result Time (Client Decrypt):  " << (sum_decrypt_ms      / query_runs)<< " ms\n";
     std::cout << "--------------------------------------------------------\n";
-    std::cout << "Total Query Latency:           " << (sum_total_ms     / 100.0) << " ms\n";
+    std::cout << "Total Query Latency:           " << (sum_total_ms     / query_runs) << " ms\n";
     std::cout << "Last Returned / Truth    " << last_returned << " / " << last_ground_truth << "\n";
     std::cout << "========================================================\n";
     
